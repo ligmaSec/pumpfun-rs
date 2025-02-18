@@ -23,8 +23,12 @@ use anchor_spl::associated_token::{
 use borsh::BorshDeserialize;
 pub use pumpfun_cpi as cpi;
 use serde::{Deserialize, Serialize};
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
+use solana_sdk::{compute_budget::ComputeBudgetInstruction, system_instruction};
 use std::sync::Arc;
+use solana_sdk::pubkey;
+
+const NOZOMI_TIP: Pubkey = pubkey!("TEMPaMeCRFAS9EKF53Jd6KpHxgL47uWLcpFArU1Fanq");
+const MIN_TIP_AMOUNT: u64 = 1_000_000;
 
 /// Configuration for priority fee compute unit parameters
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,6 +266,7 @@ impl PumpFun {
         amount_sol: u64,
         slippage_basis_points: Option<u64>,
         priority_fee: Option<PriorityFee>,
+        use_temporal: bool
     ) -> Result<Signature, error::ClientError> {
         // Get accounts and calculate buy amounts
         let global_account = self.get_global_account().await?;
@@ -299,6 +304,7 @@ impl PumpFun {
         }
 
         // Add buy instruction
+
         request = request.instruction(instruction::buy(
             &self.payer,
             mint,
@@ -308,6 +314,10 @@ impl PumpFun {
                 _max_sol_cost: buy_amount_with_slippage,
             },
         ));
+
+        if use_temporal == true {
+            request = request.instruction(system_instruction::transfer(&self.payer.pubkey(), &NOZOMI_TIP, MIN_TIP_AMOUNT));
+        }
 
         // Add signer
         request = request.signer(&self.payer);
